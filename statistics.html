@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statistiques Marrantes - Babyfoot ELO</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="nav-icon">⚽</span>
+      <span class="nav-title">BABYFOOT ELO</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="index.html">Accueil</a></li>
+      <li><a href="matches.html">Matchs</a></li>
+      <li><a href="players.html">Joueurs</a></li>
+      <li><a href="team-generator.html">Générateur</a></li>
+      <li><a href="statistics.html" class="active">Statistiques</a></li>
+    </ul>
+    <button class="nav-burger" id="navBurger">☰</button>
+  </nav>
+  <div class="nav-mobile-menu" id="mobileMenu">
+    <a href="index.html">Accueil</a>
+    <a href="matches.html">Matchs</a>
+    <a href="players.html">Joueurs</a>
+    <a href="team-generator.html">Générateur</a>
+    <a href="statistics.html">Statistiques</a>
+  </div>
+
+  <main class="page-main">
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="hero-text">
+        <h1 class="hero-title"><span class="accent">STATISTIQUES</span></h1>
+        <p class="hero-sub">Découvrez les records, les succès et les fails épiques</p>
+      </div>
+    </section>
+
+    <!-- SECTION ATTAQUE/DÉFENSE -->
+    <section class="stats-section">
+      <h2 class="section-title">⚔️ MAÎTRES DE L'ATTAQUE & DE LA DÉFENSE</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">🎯</span>
+            <span>Meilleur Buteur</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="bestAttackerInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">— buts marqués en attaque</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">🛡️</span>
+            <span>Meilleur Défenseur</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="bestDefenderInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">— matchs défendus</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">📊</span>
+            <span>Ratio Attaque/Défense</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="attackDefenseRatioInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">meilleur équilibriste</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">⚡</span>
+            <span>Spécialiste Attaque</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="attackSpecialistInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">— % de matchs en attaque</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION RECORDS PERSONNELS -->
+    <section class="stats-section">
+      <h2 class="section-title">🏆 RECORDS & EXPLOITS ÉPIQUES</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">🔥</span>
+            <span>Série de Victoires</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="winStreakInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">victoires consécutives</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">💪</span>
+            <span>Taux de Victoire</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="winRateInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">de domination</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">🎪</span>
+            <span>Plus Constant</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="mostConsistentInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">— matchs joués sans pause</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-icon">🎯</span>
+            <span>Novice du Jour</span>
+          </div>
+          <div class="stat-card-body">
+            <div id="newestPlayerInfo" class="stat-info">
+              <div class="stat-player-name">—</div>
+              <div class="stat-detail">dernière recrue</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION MATCHUPS -->
+    <section class="stats-section">
+      <h2 class="section-title">🥊 RIVALITÉS & VENDETTAS</h2>
+      <div class="matchup-container">
+        <div class="matchup-card">
+          <div class="matchup-title">Pire Ennemi</div>
+          <div id="worstEnemyInfo" class="matchup-info">
+            <div class="matchup-players">— vs —</div>
+            <div class="matchup-score">— victoires : — défaites</div>
+          </div>
+        </div>
+
+        <div class="matchup-card">
+          <div class="matchup-title">Rival Principal</div>
+          <div id="rivalInfo" class="matchup-info">
+            <div class="matchup-players">— vs —</div>
+            <div class="matchup-score">— matchs au total</div>
+          </div>
+        </div>
+
+        <div class="matchup-card">
+          <div class="matchup-title">Paire Imbattable</div>
+          <div id="bestTeamInfo" class="matchup-info">
+            <div class="matchup-players">— & —</div>
+            <div class="matchup-score">— victoires ensemble</div>
+          </div>
+        </div>
+
+        <div class="matchup-card">
+          <div class="matchup-title">Combo Catastrophe</div>
+          <div id="worstTeamInfo" class="matchup-info">
+            <div class="matchup-players">— & —</div>
+            <div class="matchup-score">— défaites ensemble</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION BADGES AMUSANTS -->
+    <section class="stats-section">
+      <h2 class="section-title">🎖️ BADGES & TITRES</h2>
+      <div class="badges-container" id="badgesContainer">
+        <!-- Badges générés dynamiquement -->
+      </div>
+    </section>
+
+    <!-- SECTION FAITS DIVERS -->
+    <section class="stats-section">
+      <h2 class="section-title">🎲 FAITS DIVERS & CURIOSITÉS</h2>
+      <div class="facts-container" id="factsContainer">
+        <!-- Faits générés dynamiquement -->
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module" src="js/statistics.js"></script>
+</body>
+</html>
