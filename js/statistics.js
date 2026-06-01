@@ -27,10 +27,13 @@ function renderAttackDefense() {
   if (players.length === 0) return;
 
   // Meilleur buteur (wins en attaque)
-  let bestAttacker = null, maxAttackWins = -1;
-  let bestDefender = null, maxDefenseMatches = -1;
-  let bestBalancer = null, minRatioDiff = Infinity;
-  let bestSpecialist = null, maxAttackPct = -1;
+  let attackers = [];
+  let bestBalancers = [];
+  let specialists = [];
+  let bestDefenders = [];
+  let attackRatios = [];
+  let defenseRatios = [];
+  let ratios1v1 = [];
 
   for (const p of players) {
     const stats = getPlayerStats(p.id);
@@ -50,72 +53,213 @@ function renderAttackDefense() {
       }
     }
 
-    if (attackWins > maxAttackWins) {
-      maxAttackWins = attackWins;
-      bestAttacker = { id: p.id, name: getDisplayName(p.id), wins: attackWins };
+    if (attackWins > 0) {
+      attackers.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        wins: attackWins
+      });
     }
 
-    // Meilleur défenseur: matchs en défense
-    if (stats.matchesDef > maxDefenseMatches) {
-      maxDefenseMatches = stats.matchesDef;
-      bestDefender = { id: p.id, name: getDisplayName(p.id), matches: stats.matchesDef };
+    // Meilleur défenseur: moins de buts encaissés en défense (minimum 10 matchs)
+    let goalsConceded = 0;
+    for (const match of allSorted) {
+      const inA = match.teamA.some(p2 => p2.playerId === p.id);
+      const inB = match.teamB.some(p2 => p2.playerId === p.id);
+      if (!inA && !inB) continue;
+
+      const playerSlot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
+      if (playerSlot?.role === "defense") {
+        if (inA) {
+          goalsConceded += match.scoreB;
+        } else {
+          goalsConceded += match.scoreA;
+        }
+      }
+    }
+
+    if (stats.matchesDef >= 10) {
+      const avgGoals = (goalsConceded / stats.matchesDef).toFixed(2);
+      bestDefenders.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        goals: goalsConceded,
+        matches: stats.matchesDef,
+        avg: parseFloat(avgGoals)
+      });
     }
 
     // Meilleur équilibriste: ratio att/def le plus proche de 1
-    const ratio = stats.matchesAtt > 0 && stats.matchesDef > 0
-      ? Math.abs(stats.matchesAtt - stats.matchesDef)
-      : Infinity;
-    if (stats.matchesAtt > 0 && stats.matchesDef > 0 && ratio < minRatioDiff) {
-      minRatioDiff = ratio;
-      bestBalancer = {
+    if (stats.matchesAtt > 0 && stats.matchesDef > 0) {
+      const ratio = Math.abs(stats.matchesAtt - stats.matchesDef);
+      bestBalancers.push({
         id: p.id,
         name: getDisplayName(p.id),
         att: stats.matchesAtt,
-        def: stats.matchesDef
-      };
+        def: stats.matchesDef,
+        diff: ratio
+      });
     }
 
     // Spécialiste attaque: % d'attaque le plus élevé
     if (stats.matchesAtt > 0 || stats.matchesDef > 0) {
       const total = stats.matchesAtt + stats.matchesDef;
       const pct = Math.round((stats.matchesAtt / total) * 100);
-      if (pct > maxAttackPct) {
-        maxAttackPct = pct;
-        bestSpecialist = {
-          id: p.id,
-          name: getDisplayName(p.id),
-          pct: pct
-        };
+      specialists.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: pct
+      });
+    }
+
+    // Meilleur ratio de victoires en attaque (minimum 10 matchs en attaque)
+    if (stats.matchesAtt >= 10) {
+      let attackWinsCount = 0;
+      for (const match of allSorted) {
+        const inA = match.teamA.some(p2 => p2.playerId === p.id);
+        const inB = match.teamB.some(p2 => p2.playerId === p.id);
+        if (!inA && !inB) continue;
+
+        const playerSlot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
+        if (playerSlot?.role === "attaque") {
+          const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
+          if (won) attackWinsCount++;
+        }
       }
+      
+      const attackRatioPct = Math.round((attackWinsCount / stats.matchesAtt) * 100);
+      attackRatios.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: attackRatioPct,
+        wins: attackWinsCount,
+        matches: stats.matchesAtt
+      });
+    }
+
+    // Meilleur ratio de victoires en défense (minimum 10 matchs en défense)
+    if (stats.matchesDef >= 10) {
+      let defenseWinsCount = 0;
+      for (const match of allSorted) {
+        const inA = match.teamA.some(p2 => p2.playerId === p.id);
+        const inB = match.teamB.some(p2 => p2.playerId === p.id);
+        if (!inA && !inB) continue;
+
+        const playerSlot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
+        if (playerSlot?.role === "defense") {
+          const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
+          if (won) defenseWinsCount++;
+        }
+      }
+      
+      const defenseRatioPct = Math.round((defenseWinsCount / stats.matchesDef) * 100);
+      defenseRatios.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: defenseRatioPct,
+        wins: defenseWinsCount,
+        matches: stats.matchesDef
+      });
+    }
+
+    // Meilleur 1v1 (1 joueur vs 1 joueur)
+    let matches1v1 = 0;
+    let wins1v1 = 0;
+    for (const match of allSorted) {
+      // 1v1 = exactement 1 joueur par équipe
+      if (match.teamA.length !== 1 || match.teamB.length !== 1) continue;
+
+      const inA = match.teamA.some(p2 => p2.playerId === p.id);
+      const inB = match.teamB.some(p2 => p2.playerId === p.id);
+      if (!inA && !inB) continue;
+
+      matches1v1++;
+      const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
+      if (won) wins1v1++;
+    }
+
+    if (matches1v1 >= 5) {
+      const ratio1v1Pct = Math.round((wins1v1 / matches1v1) * 100);
+      ratios1v1.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: ratio1v1Pct,
+        wins: wins1v1,
+        matches: matches1v1
+      });
     }
   }
 
+  // Trier tous les classements
+  attackers.sort((a, b) => b.wins - a.wins);
+  bestDefenders.sort((a, b) => a.avg - b.avg);
+  bestBalancers.sort((a, b) => a.diff - b.diff);
+  specialists.sort((a, b) => b.pct - a.pct);
+  attackRatios.sort((a, b) => b.pct - a.pct);
+  defenseRatios.sort((a, b) => b.pct - a.pct);
+  ratios1v1.sort((a, b) => b.pct - a.pct);
+
   // Remplir les éléments du DOM
-  if (bestAttacker) {
+  if (attackers.length > 0) {
+    const attacker = attackers[0];
     document.getElementById("bestAttackerInfo").innerHTML = `
-      <div class="stat-player-name" style="color:${state.players[bestAttacker.id]?.color}">${bestAttacker.name}</div>
-      <div class="stat-detail">${bestAttacker.wins} buts marqués en attaque</div>
+      <div class="stat-player-name" style="color:${state.players[attacker.id]?.color}">${attacker.name}</div>
+      <div class="stat-detail">${attacker.wins} buts marqués en attaque</div>
+      ${attackers.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${attackers[1].name} (${attackers[1].wins})</div>` : ''}
     `;
   }
 
-  if (bestDefender) {
+  if (bestDefenders.length > 0) {
+    const defender = bestDefenders[0];
     document.getElementById("bestDefenderInfo").innerHTML = `
-      <div class="stat-player-name" style="color:${state.players[bestDefender.id]?.color}">${bestDefender.name}</div>
-      <div class="stat-detail">${bestDefender.matches} matchs défendus</div>
+      <div class="stat-player-name" style="color:${state.players[defender.id]?.color}">${defender.name}</div>
+      <div class="stat-detail">${defender.avg} buts/match (${defender.goals} en ${defender.matches})</div>
+      ${bestDefenders.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${bestDefenders[1].name} (${bestDefenders[1].avg})</div>` : ''}
     `;
   }
 
-  if (bestBalancer) {
+  if (bestBalancers.length > 0) {
+    const balancer = bestBalancers[0];
     document.getElementById("attackDefenseRatioInfo").innerHTML = `
-      <div class="stat-player-name" style="color:${state.players[bestBalancer.id]?.color}">${bestBalancer.name}</div>
-      <div class="stat-detail">${bestBalancer.att}A / ${bestBalancer.def}D</div>
+      <div class="stat-player-name" style="color:${state.players[balancer.id]?.color}">${balancer.name}</div>
+      <div class="stat-detail">${balancer.att}A / ${balancer.def}D</div>
+      ${bestBalancers.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${bestBalancers[1].name} (${bestBalancers[1].att}A/${bestBalancers[1].def}D)</div>` : ''}
     `;
   }
 
-  if (bestSpecialist) {
+  if (specialists.length > 0) {
+    const specialist = specialists[0];
     document.getElementById("attackSpecialistInfo").innerHTML = `
-      <div class="stat-player-name" style="color:${state.players[bestSpecialist.id]?.color}">${bestSpecialist.name}</div>
-      <div class="stat-detail">${bestSpecialist.pct}% en attaque</div>
+      <div class="stat-player-name" style="color:${state.players[specialist.id]?.color}">${specialist.name}</div>
+      <div class="stat-detail">${specialist.pct}% en attaque</div>
+      ${specialists.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${specialists[1].name} (${specialists[1].pct}%)</div>` : ''}
+    `;
+  }
+
+  if (attackRatios.length > 0) {
+    const ratio = attackRatios[0];
+    document.getElementById("bestAttackRatioInfo").innerHTML = `
+      <div class="stat-player-name" style="color:${state.players[ratio.id]?.color}">${ratio.name}</div>
+      <div class="stat-detail">${ratio.pct}% (${ratio.wins}/${ratio.matches})</div>
+      ${attackRatios.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${attackRatios[1].name} (${attackRatios[1].pct}%)</div>` : ''}
+    `;
+  }
+
+  if (defenseRatios.length > 0) {
+    const ratio = defenseRatios[0];
+    document.getElementById("bestDefenseRatioInfo").innerHTML = `
+      <div class="stat-player-name" style="color:${state.players[ratio.id]?.color}">${ratio.name}</div>
+      <div class="stat-detail">${ratio.pct}% (${ratio.wins}/${ratio.matches})</div>
+      ${defenseRatios.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${defenseRatios[1].name} (${defenseRatios[1].pct}%)</div>` : ''}
+    `;
+  }
+
+  if (ratios1v1.length > 0) {
+    const ratio = ratios1v1[0];
+    document.getElementById("best1v1Info").innerHTML = `
+      <div class="stat-player-name" style="color:${state.players[ratio.id]?.color}">${ratio.name}</div>
+      <div class="stat-detail">${ratio.pct}% (${ratio.wins}/${ratio.matches})</div>
+      ${ratios1v1.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${ratios1v1[1].name} (${ratios1v1[1].pct}%)</div>` : ''}
     `;
   }
 }

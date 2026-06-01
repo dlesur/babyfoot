@@ -1205,6 +1205,13 @@ input, select, textarea { font-family: inherit; }
   font-size: 0.9rem;
 }
 
+.stat-detail.stat-secondary {
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
 /* ─── Matchup Cards ─────────────────────────────────────────── */
 .matchup-container {
   display: grid;
