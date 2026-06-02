@@ -97,7 +97,16 @@ function renderPlayersGrid() {
     btn.addEventListener("click", () => openNicknameModal(btn.dataset.nickname));
   });
   grid.querySelectorAll("[data-edit]").forEach(btn => {
-    btn.addEventListener("click", () => openEditModal(btn.dataset.edit));
+    btn.addEventListener("click", () => {
+      const playerId = btn.dataset.edit;
+      const player = state.players[playerId];
+      // Rickroll si le joueur a "Veron" dans son nom
+      if (player && player.name.toLowerCase().includes("veron")) {
+        window.location.href = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+      } else {
+        openEditModal(playerId);
+      }
+    });
   });
 }
 
