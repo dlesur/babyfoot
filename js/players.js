@@ -100,8 +100,8 @@ function renderPlayersGrid() {
     btn.addEventListener("click", () => {
       const playerId = btn.dataset.edit;
       const player = state.players[playerId];
-      // Rickroll si le joueur a "Veron" dans son nom
-      if (player && player.name.toLowerCase().includes("veron")) {
+      // Rickroll si le joueur a "daphné" dans son nom
+      if (player && player.name.toLowerCase().includes("daphné")) {
         window.location.href = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
       } else {
         openEditModal(playerId);
