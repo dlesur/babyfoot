@@ -172,6 +172,68 @@ document.getElementById("savePlayer")?.addEventListener("click", async () => {
   }
 });
 
+// ─── Helper: Calculer le ranking du joueur ──────────────────
+function getPlayerRankings(playerId) {
+  const players = Object.values(state.players);
+  let attackRankings = [];
+  let defenseRankings = [];
+
+  for (const p of players) {
+    let attackWins = 0, attackTotal = 0;
+    let defenseWins = 0, defenseTotal = 0;
+
+    for (const match of allSorted) {
+      const inA = match.teamA.some(p2 => p2.playerId === p.id);
+      const inB = match.teamB.some(p2 => p2.playerId === p.id);
+      if (!inA && !inB) continue;
+
+      const playerSlot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
+      const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
+
+      if (playerSlot?.role === "attaque") {
+        attackTotal++;
+        if (won) attackWins++;
+      } else if (playerSlot?.role === "defense") {
+        defenseTotal++;
+        if (won) defenseWins++;
+      }
+    }
+
+    if (attackTotal >= 5) {
+      const pct = Math.round((attackWins / attackTotal) * 100);
+      attackRankings.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: pct,
+        wins: attackWins,
+        total: attackTotal
+      });
+    }
+
+    if (defenseTotal >= 5) {
+      const pct = Math.round((defenseWins / defenseTotal) * 100);
+      defenseRankings.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: pct,
+        wins: defenseWins,
+        total: defenseTotal
+      });
+    }
+  }
+
+  attackRankings.sort((a, b) => b.pct - a.pct);
+  defenseRankings.sort((a, b) => b.pct - a.pct);
+
+  const playerAttackRank = attackRankings.findIndex(r => r.id === playerId);
+  const playerDefenseRank = defenseRankings.findIndex(r => r.id === playerId);
+
+  return {
+    attack: playerAttackRank >= 0 ? { rank: playerAttackRank + 1, ...attackRankings[playerAttackRank] } : null,
+    defense: playerDefenseRank >= 0 ? { rank: playerDefenseRank + 1, ...defenseRankings[playerDefenseRank] } : null
+  };
+}
+
 // ─── Player Detail Modal ──────────────────────────────────────
 function openPlayerDetail(playerId) {
   const p = state.players[playerId];
@@ -277,6 +339,47 @@ function openPlayerDetail(playerId) {
       <canvas id="detailEloChart"></canvas>
     </div>
 
+    <!-- Rankings -->
+    <p class="detail-section-title">Classement Attaque / Défense</p>
+    <div class="detail-rankings">
+      ${(() => {
+        const rankings = getPlayerRankings(playerId);
+        const attackHTML = rankings.attack 
+          ? `<div style="background: var(--bg2); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border);">
+              <p style="font-size: 0.85rem; color: var(--text2); margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 600;">Attaque</p>
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: #ffd700; min-width: 3rem;">#${rankings.attack.rank}</div>
+                <div>
+                  <div style="font-weight: 600; color: ${p.color};">${rankings.attack.name}</div>
+                  <div style="font-size: 0.85rem; color: var(--text2);">${rankings.attack.pct}% (${rankings.attack.wins}/${rankings.attack.total})</div>
+                </div>
+              </div>
+            </div>`
+          : `<div style="background: var(--bg2); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border); color: var(--text2);">
+              <p style="font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 600;">Attaque</p>
+              <p style="font-size: 0.9rem;">Min 5 matchs en attaque</p>
+            </div>`;
+
+        const defenseHTML = rankings.defense 
+          ? `<div style="background: var(--bg2); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border);">
+              <p style="font-size: 0.85rem; color: var(--text2); margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 600;">Défense</p>
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="font-size: 1.5rem; font-weight: 700; color: #ffd700; min-width: 3rem;">#${rankings.defense.rank}</div>
+                <div>
+                  <div style="font-weight: 600; color: ${p.color};">${rankings.defense.name}</div>
+                  <div style="font-size: 0.85rem; color: var(--text2);">${rankings.defense.pct}% (${rankings.defense.wins}/${rankings.defense.total})</div>
+                </div>
+              </div>
+            </div>`
+          : `<div style="background: var(--bg2); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border); color: var(--text2);">
+              <p style="font-size: 0.85rem; margin-bottom: 0.5rem; text-transform: uppercase; font-weight: 600;">Défense</p>
+              <p style="font-size: 0.9rem;">Min 5 matchs en défense</p>
+            </div>`;
+        
+        return attackHTML + defenseHTML;
+      })()}
+    </div>
+
     <div class="detail-grid">
       <!-- Rivals -->
       <div>
@@ -332,9 +435,10 @@ function openPlayerDetail(playerId) {
           borderColor: p.color,
           backgroundColor: `${p.color}22`,
           borderWidth: 2.5,
-          pointRadius: 4,
+          pointRadius: 0,
+          pointHoverRadius: 5,
           tension: 0.35,
-          fill: true,
+          fill: false,
         }]
       },
       options: {

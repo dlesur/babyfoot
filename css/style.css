@@ -306,6 +306,28 @@ input, select, textarea { font-family: inherit; }
 }
 
 /* ===================== CHART ===================== */
+.chart-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg3);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.chart-filters label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.chart-filters input[type="checkbox"] {
+  cursor: pointer;
+}
+
 .chart-container {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -656,6 +678,13 @@ input, select, textarea { font-family: inherit; }
   gap: 1.5rem;
 }
 @media (max-width: 680px) { .detail-grid { grid-template-columns: 1fr; } }
+
+.detail-rankings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media (max-width: 680px) { .detail-rankings { grid-template-columns: 1fr; } }
 
 .detail-stats-grid {
   display: grid;
@@ -1212,7 +1241,92 @@ input, select, textarea { font-family: inherit; }
   border-top: 1px solid var(--border);
 }
 
-/* ─── Matchup Cards ─────────────────────────────────────────── */
+/* ─── Ranking Container ─────────────────────────────────────────── */
+.ranking-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+}
+
+.ranking-column {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ranking-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text);
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+  background: var(--bg3);
+}
+
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg3);
+  border-radius: var(--radius);
+  transition: background 0.15s;
+}
+
+.ranking-item:hover {
+  background: rgba(0, 232, 122, 0.08);
+}
+
+.ranking-position {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  min-width: 30px;
+  text-align: center;
+  color: var(--accent);
+}
+
+.ranking-item:nth-child(1) .ranking-position { color: #ffd700; }
+.ranking-item:nth-child(2) .ranking-position { color: #c0c0c0; }
+.ranking-item:nth-child(3) .ranking-position { color: #cd7f32; }
+
+.ranking-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ranking-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.ranking-stat {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text2);
+}
+
+.ranking-empty {
+  text-align: center;
+  color: var(--text3);
+  padding: 2rem 1rem;
+  font-style: italic;
+}
+
 .matchup-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

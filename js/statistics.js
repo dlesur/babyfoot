@@ -335,7 +335,100 @@ function renderPersonalRecords() {
   }
 }
 
-// ─── SECTION 3: MATCHUPS & RIVALITÉS ───────────────────────
+// ─── SECTION 3: CLASSEMENTS ATTAQUE/DÉFENSE ────────────────
+function renderRankings() {
+  const players = Object.values(state.players);
+  if (players.length === 0) return;
+
+  let attackRankings = [];
+  let defenseRankings = [];
+
+  for (const p of players) {
+    let attackWins = 0, attackTotal = 0;
+    let defenseWins = 0, defenseTotal = 0;
+
+    for (const match of allSorted) {
+      const inA = match.teamA.some(p2 => p2.playerId === p.id);
+      const inB = match.teamB.some(p2 => p2.playerId === p.id);
+      if (!inA && !inB) continue;
+
+      const playerSlot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
+      const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
+
+      if (playerSlot?.role === "attaque") {
+        attackTotal++;
+        if (won) attackWins++;
+      } else if (playerSlot?.role === "defense") {
+        defenseTotal++;
+        if (won) defenseWins++;
+      }
+    }
+
+    if (attackTotal >= 5) {
+      const pct = Math.round((attackWins / attackTotal) * 100);
+      attackRankings.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: pct,
+        wins: attackWins,
+        total: attackTotal
+      });
+    }
+
+    if (defenseTotal >= 5) {
+      const pct = Math.round((defenseWins / defenseTotal) * 100);
+      defenseRankings.push({
+        id: p.id,
+        name: getDisplayName(p.id),
+        pct: pct,
+        wins: defenseWins,
+        total: defenseTotal
+      });
+    }
+  }
+
+  // Trier par pourcentage
+  attackRankings.sort((a, b) => b.pct - a.pct);
+  defenseRankings.sort((a, b) => b.pct - a.pct);
+
+  // Générer HTML pour attaque
+  const attackList = document.getElementById("attackRankingList");
+  if (attackList) {
+    if (attackRankings.length === 0) {
+      attackList.innerHTML = '<div class="ranking-empty">Aucune donnée (min 5 matchs)</div>';
+    } else {
+      attackList.innerHTML = attackRankings.map((r, idx) => `
+        <div class="ranking-item">
+          <div class="ranking-position">#${idx + 1}</div>
+          <div class="ranking-info">
+            <div class="ranking-name" style="color:${state.players[r.id]?.color}">${r.name}</div>
+            <div class="ranking-stat">${r.pct}% (${r.wins}/${r.total})</div>
+          </div>
+        </div>
+      `).join("");
+    }
+  }
+
+  // Générer HTML pour défense
+  const defenseList = document.getElementById("defenseRankingList");
+  if (defenseList) {
+    if (defenseRankings.length === 0) {
+      defenseList.innerHTML = '<div class="ranking-empty">Aucune donnée (min 5 matchs)</div>';
+    } else {
+      defenseList.innerHTML = defenseRankings.map((r, idx) => `
+        <div class="ranking-item">
+          <div class="ranking-position">#${idx + 1}</div>
+          <div class="ranking-info">
+            <div class="ranking-name" style="color:${state.players[r.id]?.color}">${r.name}</div>
+            <div class="ranking-stat">${r.pct}% (${r.wins}/${r.total})</div>
+          </div>
+        </div>
+      `).join("");
+    }
+  }
+}
+
+// ─── SECTION 4: MATCHUPS & RIVALITÉS ───────────────────────
 function renderMatchups() {
   const players = Object.values(state.players);
   if (players.length < 2) return;
@@ -832,6 +925,7 @@ function renderFacts() {
 function renderAllStatistics() {
   renderAttackDefense();
   renderPersonalRecords();
+  renderRankings();
   renderMatchups();
   renderBadges();
   renderFacts();

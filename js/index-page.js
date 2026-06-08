@@ -199,6 +199,8 @@ function renderDuos() {
 }
 
 // ─── ELO Chart ───────────────────────────────────────────────
+let eloChartState = { sortedMatches: [], allPlayers: [] };
+
 function renderEloChart(sortedMatches) {
   const canvas = document.getElementById("eloChart");
   if (!canvas) return;
@@ -207,11 +209,60 @@ function renderEloChart(sortedMatches) {
   const players = Object.values(state.players);
   if (!players.length) return;
 
+  eloChartState = { sortedMatches, allPlayers: players };
+
+  // Build checkboxes
+  const filterContainer = document.getElementById("chartFilters");
+  if (filterContainer) {
+    filterContainer.innerHTML = `
+      <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+        <input type="checkbox" id="chartFilterAll" checked style="cursor: pointer;" />
+        Tous les joueurs
+      </label>
+      ${players.map(p => `
+        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+          <input type="checkbox" class="chart-player-filter" value="${p.id}" checked style="cursor: pointer;" />
+          <span style="color: ${p.color}; font-weight: 500;">${p.name}</span>
+        </label>
+      `).join("")}
+    `;
+
+    // Attach event listeners
+    document.getElementById("chartFilterAll").addEventListener("change", () => {
+      const allChecked = document.getElementById("chartFilterAll").checked;
+      document.querySelectorAll(".chart-player-filter").forEach(cb => {
+        cb.checked = allChecked;
+      });
+      updateEloChart();
+    });
+
+    document.querySelectorAll(".chart-player-filter").forEach(cb => {
+      cb.addEventListener("change", () => {
+        const allFilter = document.getElementById("chartFilterAll");
+        const anyChecked = Array.from(document.querySelectorAll(".chart-player-filter")).some(c => c.checked);
+        allFilter.checked = anyChecked;
+        updateEloChart();
+      });
+    });
+  }
+
+  updateEloChart();
+}
+
+function updateEloChart() {
+  const { sortedMatches, allPlayers } = eloChartState;
+  const canvas = document.getElementById("eloChart");
+  if (!canvas) return;
+
+  // Get selected players
+  const selectedIds = Array.from(document.querySelectorAll(".chart-player-filter:checked")).map(cb => cb.value);
+  const displayedPlayers = allPlayers.filter(p => selectedIds.includes(p.id));
+
   // Build X axis: index = match number (global)
   const labels = ["Début", ...sortedMatches.map((_, i) => `M${i + 1}`)];
 
   // Per player: track ELO evolution
-  const datasets = players.map(p => {
+  const datasets = displayedPlayers.map(p => {
     const { BASE_ELO } = { BASE_ELO: 1000 };
     const data = [BASE_ELO];
     for (const m of sortedMatches) {
@@ -225,8 +276,8 @@ function renderEloChart(sortedMatches) {
       borderColor: p.color,
       backgroundColor: `${p.color}22`,
       borderWidth: 2.5,
-      pointRadius: 3,
-      pointHoverRadius: 6,
+      pointRadius: 0,
+      pointHoverRadius: 5,
       tension: 0.35,
       fill: false,
     };
