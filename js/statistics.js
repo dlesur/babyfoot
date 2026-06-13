@@ -620,7 +620,7 @@ function renderBadges() {
         let best = null, bestAvg = 0, bestValueStr = "";
         for (const p of players) {
           const stats = getPlayerStats(p.id);
-          if (!stats || stats.matchesAtt < 10) continue; // Min 10 matchs pour être crédible
+          if (!stats || stats.matchesAtt < 10) continue;
 
           let attackGoals = 0;
           for (const match of allSorted) {
@@ -688,7 +688,7 @@ function renderBadges() {
   `).join("");
 }
 
-// ─── SECTION 5: FAITS DIVERS ───────────────────────────────
+// ─── SECTION 5: FAITS DIVERS & BRAQUAGES ───────────────────
 function renderFacts() {
   const facts = [];
   const players = Object.values(state.players);
@@ -698,7 +698,7 @@ function renderFacts() {
     return;
   }
 
-  // Fait 1: Nombre total de matchs
+  // --- FAITS CLASSIQUES ---
   const totalMatches = allSorted.length;
   if (totalMatches > 0) {
     facts.push({
@@ -707,7 +707,6 @@ function renderFacts() {
     });
   }
 
-  // Fait 2: Joueur le plus chaud (meilleur ELO actuel)
   let hottest = null, maxElo = 0;
   for (const p of players) {
     if (p.elo > maxElo) {
@@ -722,7 +721,6 @@ function renderFacts() {
     });
   }
 
-  // Fait 3: Score le plus élevé
   let maxScore = 0, maxMatch = null;
   for (const match of allSorted) {
     const score = match.scoreA + match.scoreB;
@@ -740,7 +738,6 @@ function renderFacts() {
     });
   }
 
-  // Fait 4: Plus gros écart de score remporté
   let biggestVictory = { diff: 0, match: null };
   for (const match of allSorted) {
     const diff = Math.abs(match.scoreA - match.scoreB);
@@ -758,165 +755,132 @@ function renderFacts() {
     });
   }
 
-  // Fait 5: Score le plus serré
-  let closestMatches = [];
-  for (const match of allSorted) {
-    if (Math.abs(match.scoreA - match.scoreB) === 1) {
-      closestMatches.push(match);
-    }
-  }
-  if (closestMatches.length > 0) {
-    const example = closestMatches[0];
-    const playersA = example.teamA.map(p => getDisplayName(p.playerId)).join(" & ");
-    const playersB = example.teamB.map(p => getDisplayName(p.playerId)).join(" & ");
-    facts.push({
-      icon: "😰",
-      text: `${closestMatches.length} match${closestMatches.length > 1 ? 's' : ''} gagné${closestMatches.length > 1 ? 's' : ''} d'un but (ex: ${playersA} vs ${playersB})`
-    });
-  }
-
-  // Fait 6: Ratio 1v1 / 2v2
-  let matches1v1 = 0, matches2v2 = 0;
-  for (const match of allSorted) {
-    if (match.mode === "1v1") matches1v1++;
-    else matches2v2++;
-  }
-  if (matches1v1 > 0 || matches2v2 > 0) {
-    const pct1v1 = Math.round((matches1v1 / (matches1v1 + matches2v2)) * 100);
-    const pct2v2 = 100 - pct1v1;
-    facts.push({
-      icon: "⚔️",
-      text: `${pct1v1}% en 1v1 vs ${pct2v2}% en 2v2`
-    });
-  }
-
-  // Fait 7: Joueur le plus discret
-  let quietest = null, minMatches = Infinity;
+  // --- NOUVEAU: LES BRAQUAGES (ELO + ANALYSE DES ROLES) ---
+  
+  // 1. Pré-calculer le taux de victoire global de chaque joueur dans ses rôles
+  const roleStats = {};
   for (const p of players) {
-    const stats = getPlayerStats(p.id);
-    if (stats && stats.totalMatches < minMatches && stats.totalMatches > 0) {
-      minMatches = stats.totalMatches;
-      quietest = p;
-    }
-  }
-  if (quietest && players.length > 1) {
-    facts.push({
-      icon: "🤐",
-      text: `${getDisplayName(quietest.id)} est discret avec seulement ${minMatches} match(s)`
-    });
-  }
-
-  // Fait 8: Série de défaites la plus longue
-  let maxLossStreak = { player: null, streak: 0 };
-  for (const player of players) {
-    let currentLossStreak = 0;
+    let attWins = 0, attMatches = 0;
+    let defWins = 0, defMatches = 0;
+    
     for (const match of allSorted) {
-      const inA = match.teamA.some(p2 => p2.playerId === player.id);
-      const inB = match.teamB.some(p2 => p2.playerId === player.id);
+      const inA = match.teamA.some(p2 => p2.playerId === p.id);
+      const inB = match.teamB.some(p2 => p2.playerId === p.id);
       if (!inA && !inB) continue;
-
-      const lost = (inA && match.scoreA < match.scoreB) || (inB && match.scoreB < match.scoreA);
-      if (lost) {
-        currentLossStreak++;
-      } else {
-        if (currentLossStreak > maxLossStreak.streak) {
-          maxLossStreak = { player, streak: currentLossStreak };
-        }
-        currentLossStreak = 0;
+      
+      const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
+      const slot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
+      
+      if (slot?.role === "attaque") { 
+        attMatches++; 
+        if (won) attWins++; 
+      }
+      if (slot?.role === "defense") { 
+        defMatches++; 
+        if (won) defWins++; 
       }
     }
-    if (currentLossStreak > maxLossStreak.streak) {
-      maxLossStreak = { player, streak: currentLossStreak };
-    }
-  }
-  if (maxLossStreak.streak > 2) {
-    facts.push({
-      icon: "😭",
-      text: `Série noire record: ${getDisplayName(maxLossStreak.player.id)} avec ${maxLossStreak.streak} défaites d'affilée (ouch!)`
-    });
+    
+    roleStats[p.id] = {
+      attPct: attMatches > 0 ? (attWins / attMatches) : 0.5,
+      defPct: defMatches > 0 ? (defWins / defMatches) : 0.5
+    };
   }
 
-  // Fait 9: Joueur avec le plus d'évolution ELO
-  let biggestEloSwing = { player: null, swing: 0, change: 0 };
-  for (const p of players) {
-    const stats = getPlayerStats(p.id);
-    if (stats && stats.eloHistory.length > 1) {
-      const start = stats.eloHistory[0].elo;
-      const end = stats.eloHistory[stats.eloHistory.length - 1].elo;
-      const swing = Math.abs(end - start);
-      if (swing > biggestEloSwing.swing) {
-        biggestEloSwing = { player: p, swing: swing.toFixed(0), change: (end - start).toFixed(0) };
-      }
-    }
-  }
-  if (biggestEloSwing.player) {
-    const emoji = biggestEloSwing.change >= 0 ? "📈" : "📉";
-    const direction = biggestEloSwing.change >= 0 ? "augmenté" : "diminué";
-    facts.push({
-      icon: emoji,
-      text: `Évolution ELO: ${getDisplayName(biggestEloSwing.player.id)} a ${direction} de ${biggestEloSwing.swing} points!`
-    });
-  }
-
-  // Fait 10: Meilleure paire 2v2
-  let best2v2Team = { wins: 0, playerIds: [] };
-  const teamRecords = {};
+  let upsets = [];
   for (const match of allSorted) {
-    if (match.mode === "2v2") {
-      for (const team of [match.teamA, match.teamB]) {
-        const key = team.map(p => p.playerId).sort().join("_");
-        if (!teamRecords[key]) teamRecords[key] = { wins: 0, total: 0, playerIds: team.map(p => p.playerId) };
-        const isWinner = (team === match.teamA && match.scoreA > match.scoreB) ||
-                         (team === match.teamB && match.scoreB > match.scoreA);
-        if (isWinner) teamRecords[key].wins++;
-        teamRecords[key].total++;
+    if (match.scoreA === match.scoreB) continue; // On ignore les nuls
+
+    const teamAWon = match.scoreA > match.scoreB;
+    const winnerTeam = teamAWon ? match.teamA : match.teamB;
+    const loserTeam = teamAWon ? match.teamB : match.teamA;
+    const winnerScore = teamAWon ? match.scoreA : match.scoreB;
+    const loserScore = teamAWon ? match.scoreB : match.scoreA;
+
+    // Calcul de l'ELO moyen
+    const getAvgElo = (team) => {
+      if (team.length === 0) return 1000;
+      const total = team.reduce((sum, p) => sum + (state.players[p.playerId]?.elo || 1000), 0);
+      return total / team.length;
+    };
+
+    // Calcul de la "Force dans ce rôle" basée sur le winrate historique du joueur à ce poste
+    const getRoleStrength = (team) => {
+      if (team.length === 0) return 0.5;
+      let total = 0;
+      for (const p of team) {
+        const stats = roleStats[p.playerId];
+        if (p.role === "attaque") total += stats ? stats.attPct : 0.5;
+        else if (p.role === "defense") total += stats ? stats.defPct : 0.5;
+        else total += 0.5; // Sécurité si le rôle n'est pas défini
       }
+      return total / team.length; // Pourcentage moyen de compétence de l'équipe dans ces rôles
+    };
+
+    const winnerElo = getAvgElo(winnerTeam);
+    const loserElo = getAvgElo(loserTeam);
+    
+    const winnerRoleStrength = getRoleStrength(winnerTeam);
+    const loserRoleStrength = getRoleStrength(loserTeam);
+
+    // Etape 1 : Le déficit d'ELO (Positif si l'équipe gagnante était plus faible)
+    const eloDiff = loserElo - winnerElo; 
+
+    // Etape 2 : Le déficit de Rôle (Positif si les perdants étaient sur leurs meilleurs postes et les gagnants sur leurs pires)
+    const roleDiff = loserRoleStrength - winnerRoleStrength; 
+
+    // Etape 3 : L'indice de surprise (Upset Score)
+    const upsetScore = eloDiff + (roleDiff * 100);
+
+    // Si le score de surprise dépasse 25
+    if (upsetScore > 25) {
+      let surpriseReason = "";
+      if (roleDiff > 0.15) {
+        surpriseReason = " (à un poste inhabituel !)";
+      } else if (winnerScore - loserScore >= 3) {
+        surpriseReason = " (victoire écrasante !)";
+      }
+
+      upsets.push({
+        match,
+        upsetScore,
+        winnerTeam,
+        loserTeam,
+        winnerScore,
+        loserScore,
+        surpriseReason
+      });
     }
   }
-  for (const [key, rec] of Object.entries(teamRecords)) {
-    if (rec.wins > best2v2Team.wins) {
-      best2v2Team = { wins: rec.wins, playerIds: rec.playerIds };
-    }
-  }
-  if (best2v2Team.wins > 1) {
-    const teamName = best2v2Team.playerIds.map(pid => getDisplayName(pid)).join(" & ");
+
+  // Trier par Indice de Surprise décroissant
+  upsets.sort((a, b) => b.upsetScore - a.upsetScore);
+
+  const topUpsets = upsets.slice(0, 3);
+  if (topUpsets.length > 0) {
+    const upsetsHtml = topUpsets.map((u, i) => {
+      const wNames = u.winnerTeam.map(p => getDisplayName(p.playerId)).join(" & ");
+      const lNames = u.loserTeam.map(p => getDisplayName(p.playerId)).join(" & ");
+      return `<div style="margin-top:4px; font-size:0.9em; opacity:0.9;">
+        #${i+1} : <b>${wNames}</b> bat ${lNames} (${u.winnerScore}-${u.loserScore}) <i style="font-size:0.85em; opacity:0.8;">${u.surpriseReason}</i>
+      </div>`;
+    }).join("");
+
     facts.push({
-      icon: "🤝",
-      text: `Une paire imbattable: ${teamName} avec ${best2v2Team.wins} victoires en 2v2!`
+      icon: "🤯",
+      text: `<strong style="display:block; margin-bottom:4px;">Les braquages du siècle (Algorithme ELO + Rôles) :</strong> ${upsetsHtml}`
     });
   }
 
-  // Fait 11: Plus de joueurs sans défaite (si applicable)
-  let unbeaten = [];
-  for (const p of players) {
-    const stats = getPlayerStats(p.id);
-    if (stats && stats.totalMatches > 0 && stats.losses === 0) {
-      unbeaten.push({ id: p.id, name: getDisplayName(p.id), matches: stats.totalMatches });
-    }
-  }
-  if (unbeaten.length > 0) {
-    const topUnbeaten = unbeaten.sort((a, b) => b.matches - a.matches)[0];
+  // L'humiliation surprise : Seulement en 1v1
+  const topStomps = upsets.filter(u => u.loserScore === 0 && u.winnerTeam.length === 1 && u.loserTeam.length === 1).slice(0, 1);
+  if (topStomps.length > 0) {
+    const u = topStomps[0];
+    const wNames = u.winnerTeam.map(p => getDisplayName(p.playerId)).join(" & ");
+    const lNames = u.loserTeam.map(p => getDisplayName(p.playerId)).join(" & ");
     facts.push({
-      icon: "⭐",
-      text: `${topUnbeaten.name} est invaincu avec ${topUnbeaten.matches} match${topUnbeaten.matches > 1 ? 's' : ''}!`
-    });
-  }
-
-  // Fait 12: Nombre de nulls (si applicable)
-  let drawCount = 0;
-  let drawExample = null;
-  for (const match of allSorted) {
-    if (match.scoreA === match.scoreB) {
-      drawCount++;
-      if (!drawExample) drawExample = match;
-    }
-  }
-  if (drawCount > 0) {
-    const playersA = drawExample.teamA.map(p => getDisplayName(p.playerId)).join(" & ");
-    const playersB = drawExample.teamB.map(p => getDisplayName(p.playerId)).join(" & ");
-    facts.push({
-      icon: "🤝",
-      text: `${drawCount} match${drawCount > 1 ? 's' : ''} ${drawCount > 1 ? 'se sont' : "s'est"} terminé${drawCount > 1 ? 's' : ''} en égalité (ex: ${playersA} vs ${playersB})`
+      icon: "🌪️",
+      text: `<strong>L'humiliation (Duel 1v1) :</strong> Malgré de terribles statistiques pour ce match, ${wNames} a infligé un brutal ${u.winnerScore}-0 à ${lNames} !`
     });
   }
 
