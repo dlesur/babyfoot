@@ -26,7 +26,7 @@ function renderAttackDefense() {
   const players = Object.values(state.players);
   if (players.length === 0) return;
 
-  // Meilleur buteur (wins en attaque)
+  // Meilleur buteur (Moyenne en attaque)
   let attackers = [];
   let bestBalancers = [];
   let specialists = [];
@@ -39,8 +39,8 @@ function renderAttackDefense() {
     const stats = getPlayerStats(p.id);
     if (!stats || stats.totalMatches === 0) continue;
 
-    // Meilleur buteur: wins en attaque
-    let attackWins = 0;
+    // Meilleur buteur: Moyenne de buts marqués par match en attaque (minimum 10 matchs)
+    let attackGoals = 0;
     for (const match of allSorted) {
       const inA = match.teamA.some(p2 => p2.playerId === p.id);
       const inB = match.teamB.some(p2 => p2.playerId === p.id);
@@ -48,16 +48,19 @@ function renderAttackDefense() {
 
       const playerSlot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
       if (playerSlot?.role === "attaque") {
-        const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
-        if (won) attackWins++;
+        // On compte les buts réels marqués par son équipe
+        attackGoals += inA ? match.scoreA : match.scoreB;
       }
     }
 
-    if (attackWins > 0) {
+    if (stats.matchesAtt >= 10) {
+      const avgGoals = (attackGoals / stats.matchesAtt).toFixed(2);
       attackers.push({
         id: p.id,
         name: getDisplayName(p.id),
-        wins: attackWins
+        goals: attackGoals,
+        matches: stats.matchesAtt,
+        avg: parseFloat(avgGoals)
       });
     }
 
@@ -191,7 +194,7 @@ function renderAttackDefense() {
   }
 
   // Trier tous les classements
-  attackers.sort((a, b) => b.wins - a.wins);
+  attackers.sort((a, b) => b.avg - a.avg);
   bestDefenders.sort((a, b) => a.avg - b.avg);
   bestBalancers.sort((a, b) => a.diff - b.diff);
   specialists.sort((a, b) => b.pct - a.pct);
@@ -204,8 +207,8 @@ function renderAttackDefense() {
     const attacker = attackers[0];
     document.getElementById("bestAttackerInfo").innerHTML = `
       <div class="stat-player-name" style="color:${state.players[attacker.id]?.color}">${attacker.name}</div>
-      <div class="stat-detail">${attacker.wins} buts marqués en attaque</div>
-      ${attackers.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${attackers[1].name} (${attackers[1].wins})</div>` : ''}
+      <div class="stat-detail">${attacker.avg} buts/match (${attacker.goals} en ${attacker.matches})</div>
+      ${attackers.length > 1 ? `<div class="stat-detail stat-secondary">2e: ${attackers[1].name} (${attackers[1].avg})</div>` : ''}
     `;
   }
 
@@ -612,11 +615,14 @@ function renderBadges() {
     },
     {
       name: "🎯 Le Buteur Roi",
-      desc: "Plus de buts en attaque",
+      desc: "Meilleure moyenne de buts en attaque",
       award: () => {
-        let best = null, maxButs = 0;
+        let best = null, bestAvg = 0, bestValueStr = "";
         for (const p of players) {
-          let butts = 0;
+          const stats = getPlayerStats(p.id);
+          if (!stats || stats.matchesAtt < 10) continue; // Min 10 matchs pour être crédible
+
+          let attackGoals = 0;
           for (const match of allSorted) {
             const inA = match.teamA.some(p2 => p2.playerId === p.id);
             const inB = match.teamB.some(p2 => p2.playerId === p.id);
@@ -624,16 +630,18 @@ function renderBadges() {
 
             const playerSlot = (inA ? match.teamA : match.teamB).find(p2 => p2.playerId === p.id);
             if (playerSlot?.role === "attaque") {
-              const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
-              if (won) butts++;
+              attackGoals += inA ? match.scoreA : match.scoreB;
             }
           }
-          if (butts > maxButs) {
-            maxButs = butts;
+          
+          const avg = attackGoals / stats.matchesAtt;
+          if (avg > bestAvg) {
+            bestAvg = avg;
             best = p;
+            bestValueStr = `${avg.toFixed(2)}/m`;
           }
         }
-        return best ? { player: best, value: maxButs } : null;
+        return best ? { player: best, value: bestValueStr } : null;
       }
     },
     {
