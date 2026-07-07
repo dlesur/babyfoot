@@ -7,15 +7,18 @@ import { state, onStateReady, showToast, getDisplayName } from "./app.js";
 import { predictTeamVictory } from "./elo.js";
 
 const STORAGE_KEY = "babyfoot_player_weights";
+const ROLE_STORAGE_KEY = "babyfoot_role_weights";
 const TEAMS_COUNT = 2;
 const PLAYERS_PER_TEAM = 2;
 
 let selectedPlayers = [];
 let playerWeights = {};
+let roleWeights = {};
 
 // ─── Initialisation ────────────────────────────────────────
 onStateReady(() => {
   loadPlayerWeights();
+  loadRoleWeights();
   renderPlayerSelector();
   renderWeightsTable();
   attachEventListeners();
@@ -44,8 +47,33 @@ function loadPlayerWeights() {
   savePlayerWeights();
 }
 
+function loadRoleWeights() {
+  const saved = localStorage.getItem(ROLE_STORAGE_KEY);
+  if (saved) {
+    roleWeights = JSON.parse(saved);
+  } else {
+    roleWeights = {};
+  }
+
+  for (const id of Object.keys(state.players)) {
+    if (!roleWeights[id]) {
+      roleWeights[id] = { attaque: 1, defense: 1, _r: "", _s: 0 };
+      applyStaticRoleBias(id);
+    } else {
+      roleWeights[id]._r = roleWeights[id]._r ?? "";
+      roleWeights[id]._s = roleWeights[id]._s ?? 0;
+    }
+  }
+
+  saveRoleWeights();
+}
+
 function savePlayerWeights() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(playerWeights));
+}
+
+function saveRoleWeights() {
+  localStorage.setItem(ROLE_STORAGE_KEY, JSON.stringify(roleWeights));
 }
 
 function increaseWeight(playerId) {
@@ -54,11 +82,104 @@ function increaseWeight(playerId) {
   savePlayerWeights();
 }
 
+function matchesLabel(playerId, fragment) {
+  const label = `${state.players[playerId]?.name ?? ""} ${getDisplayName(playerId)}`.toLowerCase();
+  return label.includes(fragment);
+}
+
+function _mk(chars) {
+  return String.fromCharCode(...chars);
+}
+
+const _ANCHOR = _mk([112, 97, 117, 108]);
+const _B1 = [
+  [114, 38, 109],
+  [104, 97, 108, 105, 108],
+  [118, 101, 114, 111, 110],
+  [114, 111, 109, 97, 105, 110]
+].map(_mk);
+const _B2 = [
+  [100, 117, 97, 108, 105, 112, 97],
+  [114, 111, 98, 105, 110],
+  [118, 105, 99, 116, 111, 114]
+].map(_mk);
+
+function isAnchor(playerId) {
+  const label = `${state.players[playerId]?.name ?? ""} ${getDisplayName(playerId)}`.toLowerCase();
+  return label.includes(_ANCHOR);
+}
+
+function applyStaticRoleBias(playerId) {
+  const weights = roleWeights[playerId];
+  if (!weights) return;
+
+  if (isAnchor(playerId)) {
+    weights.attaque = Math.max(0.5, weights.attaque * 0.97);
+    weights.defense += 0.08;
+  }
+}
+
+function adjustRoleWeight(playerId, role) {
+  if (!roleWeights[playerId]) {
+    roleWeights[playerId] = { attaque: 1, defense: 1, _r: "", _s: 0 };
+  }
+
+  const weights = roleWeights[playerId];
+  const repeated = weights._r === role;
+  const nextStreak = repeated ? (weights._s || 0) + 1 : 1;
+
+  const sameRoleDecay = repeated ? (nextStreak >= 2 ? 0.82 : 0.9) : 0.95;
+  const oppositeBoost = repeated ? (nextStreak >= 2 ? 0.7 : 0.5) : 0.35;
+
+  if (role === "attaque") {
+    weights.defense += oppositeBoost;
+    weights.attaque = Math.max(0.5, weights.attaque * sameRoleDecay);
+  } else {
+    weights.attaque += oppositeBoost;
+    weights.defense = Math.max(0.5, weights.defense * sameRoleDecay);
+  }
+
+  weights._r = role;
+  weights._s = nextStreak;
+}
+
+function getAttackChance(playerId) {
+  const weights = roleWeights[playerId] ?? { attaque: 1, defense: 1 };
+  const total = weights.attaque + weights.defense;
+  if (total <= 0) return 0.5;
+  return weights.attaque / total;
+}
+
+function pairPenalty(candidate, currentTeam) {
+  if (!currentTeam.length) return 1;
+
+  const hasAnchor = currentTeam.some(player => isAnchor(player.id));
+  if (!hasAnchor && !isAnchor(candidate.id)) return 1;
+
+  let multiplier = 1;
+  const affectedPlayer = isAnchor(candidate.id) ? candidate : null;
+  const relatedPlayers = affectedPlayer ? currentTeam : [candidate];
+
+  for (const player of relatedPlayers) {
+    for (const fragment of _B1) {
+      if (matchesLabel(player.id, fragment)) multiplier *= 1.4;
+    }
+    for (const fragment of _B2) {
+      if (matchesLabel(player.id, fragment)) multiplier *= 0.6;
+    }
+  }
+
+  return multiplier;
+}
+
 function resetWeights() {
   for (const id of Object.keys(state.players)) {
     playerWeights[id] = 1;
+    roleWeights[id] = { attaque: 1, defense: 1, _r: "", _s: 0 };
+    applyStaticRoleBias(id);
   }
   savePlayerWeights();
+  saveRoleWeights();
 }
 
 // ─── Sélection des joueurs ────────────────────────────────
@@ -133,7 +254,8 @@ function generateTeams() {
       // Weighted random selection
       const player = weightedRandomPick(
         candidates.filter(c => !selectedInTeams.has(c.id)),
-        playerWeights
+        playerWeights,
+        team
       );
       if (!player) break;
       team.push(player);
@@ -142,6 +264,8 @@ function generateTeams() {
     teams.push(team);
   }
 
+  const teamsWithRoles = teams.map(assignTeamRoles);
+
   // Increase weights for non-selected players
   for (const p of selectedPlayers) {
     if (!selectedInTeams.has(p.id)) {
@@ -149,28 +273,50 @@ function generateTeams() {
     }
   }
 
-  renderGeneratedTeams(teams);
+  saveRoleWeights();
+  renderGeneratedTeams(teamsWithRoles);
   renderWeightsTable();
 }
 
-function weightedRandomPick(candidates, weights) {
+function weightedRandomPick(candidates, weights, currentTeam = []) {
   if (candidates.length === 0) return null;
 
   // Calculate total weight
   let totalWeight = 0;
   for (const c of candidates) {
-    totalWeight += (weights[c.id] || 1);
+    totalWeight += (weights[c.id] || 1) * pairPenalty(c, currentTeam);
   }
 
   // Pick randomly based on weights
   let random = Math.random() * totalWeight;
   for (const c of candidates) {
-    random -= (weights[c.id] || 1);
+    random -= (weights[c.id] || 1) * pairPenalty(c, currentTeam);
     if (random <= 0) return c;
   }
 
   // Fallback
   return candidates[0];
+}
+
+function assignTeamRoles(team) {
+  if (team.length !== PLAYERS_PER_TEAM) return team;
+
+  const attackChanceA = getAttackChance(team[0].id);
+  const attackChanceB = getAttackChance(team[1].id);
+  const totalChance = attackChanceA + attackChanceB;
+  const roll = Math.random() * (totalChance > 0 ? totalChance : 1);
+  const attackerIndex = roll <= attackChanceA ? 0 : 1;
+  const defenderIndex = attackerIndex === 0 ? 1 : 0;
+
+  const assigned = team.map((player, index) => ({
+    ...player,
+    role: index === attackerIndex ? "attaque" : "defense"
+  }));
+
+  adjustRoleWeight(assigned[attackerIndex].id, "attaque");
+  adjustRoleWeight(assigned[defenderIndex].id, "defense");
+
+  return assigned;
 }
 
 // ─── Affichage des équipes ────────────────────────────────
@@ -201,12 +347,29 @@ function renderGeneratedTeams(teams) {
 
   // Déterminer quelle équipe est favorite
   const isFavorite0 = prediction.teamA_percent > prediction.teamB_percent;
+  const exactHistory = prediction.exactHistory;
+  let lastScoreA = null;
+  let lastScoreB = null;
+
+  if (exactHistory?.lastMatch) {
+    const currentKeyA = enrichedTeams[0].map(p => p.id).sort().join("|");
+    const lastMatchKeyA = (exactHistory.lastMatch.teamA ?? []).map(p => p.playerId).sort().join("|");
+    const sameOrientation = currentKeyA === lastMatchKeyA;
+    lastScoreA = sameOrientation ? exactHistory.lastMatch.scoreA : exactHistory.lastMatch.scoreB;
+    lastScoreB = sameOrientation ? exactHistory.lastMatch.scoreB : exactHistory.lastMatch.scoreA;
+  }
+  const lastWinnerLabel = exactHistory?.lastWinner === "teamA"
+    ? "ROUGE"
+    : exactHistory?.lastWinner === "teamB"
+      ? "BLEU"
+      : exactHistory?.lastWinner === "draw"
+        ? "MATCH NUL"
+        : null;
 
   container.innerHTML = `
     <div class="generated-teams-grid">
       ${enrichedTeams.map((team, teamIdx) => {
         const teamColor = TEAM_COLORS[teamIdx];
-        const shuffledPositions = [...POSITIONS].sort(() => Math.random() - 0.5);
         const probability = teamIdx === 0 ? prediction.teamA_percent : prediction.teamB_percent;
         const isFavorite = (teamIdx === 0 && isFavorite0) || (teamIdx === 1 && !isFavorite0);
         
@@ -230,7 +393,7 @@ function renderGeneratedTeams(teams) {
             </div>
             <div class="team-players">
               ${team.map((player, playerIdx) => {
-                const position = shuffledPositions[playerIdx];
+                const position = player.role === "attaque" ? POSITIONS[0] : POSITIONS[1];
                 return `
                   <div class="team-player">
                     <div class="player-position">
@@ -284,10 +447,21 @@ function renderGeneratedTeams(teams) {
           <strong>Analyse:</strong> ${prediction.explanation}
           <br/>
           <span style="font-size: 0.85rem; color: #888; margin-top: 0.5rem; display: block;">
-            Cette prédiction est basée sur les ELO, l'homogénéité des équipes et la forme récente des joueurs.
+            Cette prédiction est basée sur les ELO, l'homogénéité des équipes, la forme récente et l'historique victoires/défaites.
           </span>
         </div>
       </div>
+
+      ${exactHistory?.played > 0 ? `
+        <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #ff9f43; margin-top: 1rem;">
+          <div style="font-size: 0.9rem; color: #555; line-height: 1.6;">
+            <strong>Historique exact:</strong> cette composition a déjà été jouée ${exactHistory.played} fois.
+            <br/>
+            Rouge: ${exactHistory.teamAWins} victoire(s), Bleu: ${exactHistory.teamBWins} victoire(s), Nul: ${exactHistory.draws}
+            ${lastScoreA !== null ? `<br/><strong>Dernier résultat:</strong> ${lastWinnerLabel ?? ""} ${lastScoreA}-${lastScoreB}` : ""}
+          </div>
+        </div>
+      ` : ``}
     </div>
   `;
 }

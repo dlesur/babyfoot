@@ -121,6 +121,16 @@ function quickStats(playerId) {
   return { total, wins, winPct: total > 0 ? ((wins / total) * 100).toFixed(0) : "0" };
 }
 
+function formatMatchParticipant(participant) {
+  const name = state.players[participant.playerId]?.name ?? "?";
+  const role = participant.role === "defense" ? "Défense" : participant.role === "attaque" ? "Attaque" : "";
+  return role ? `${name} (${role})` : name;
+}
+
+function formatMatchTeam(team) {
+  return team.map(formatMatchParticipant).join(" & ");
+}
+
 // ─── Add Player Modal ─────────────────────────────────────────
 function openAddModal() {
   document.getElementById("playerModalTitle").textContent = "Nouveau joueur";
@@ -401,14 +411,19 @@ function openPlayerDetail(playerId) {
             const resultClass = won ? "win" : lost ? "loss" : "";
             const resultText = won ? "WIN" : lost ? "PERD" : "NUL";
             const opponents = (inA ? m.teamB : m.teamA).map(pp => state.players[pp.playerId]?.name ?? "?").join(" & ");
+            const compositionA = formatMatchTeam(m.teamA);
+            const compositionB = formatMatchTeam(m.teamB);
             const ch = m._eloChanges?.[playerId];
             const deltaStr = ch ? (ch.delta > 0 ? `+${ch.delta}` : `${ch.delta}`) : "";
             return `<div class="detail-match-item">
               <span class="dm-result ${resultClass}">${resultText}</span>
               <span>vs <strong>${opponents}</strong></span>
               <span>${m.scoreA}–${m.scoreB}</span>
-              ${ch ? `<span style="font-family:var(--font-mono);font-size:.75rem;color:${ch.delta >= 0 ? 'var(--accent)' : 'var(--danger)'}">${deltaStr}</span>` : ""}
+              ${ch ? `<span style="font-family:var(--font-mono);font-size:.75rem;color:${ch.delta >= 0 ? 'var(--accent)' : 'var(--danger)'}">ELO ${deltaStr}</span>` : ""}
               <span class="dm-date">${formatDateShort(m.date)}</span>
+              <span style="flex-basis: 100%; width: 100%; font-size: 0.8rem; color: var(--text2); line-height: 1.4;">
+                Composition: <strong>A</strong> ${compositionA} | <strong>B</strong> ${compositionB}
+              </span>
             </div>`;
           }).join("") || '<p class="text-muted" style="font-size:.85rem">Aucun match</p>'}
         </div>

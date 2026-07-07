@@ -120,6 +120,104 @@ function calculateStdDev(values, mean) {
   return Math.sqrt(variance);
 }
 
+function getParticipantId(player) {
+  return player?.playerId ?? player?.id ?? null;
+}
+
+function normalizeTeamIds(team) {
+  return team.map(getParticipantId).filter(Boolean).sort().join("|");
+}
+
+function getPlayerMatchRecord(playerId, allMatches) {
+  let wins = 0;
+  let losses = 0;
+  let draws = 0;
+
+  for (const match of allMatches) {
+    const inA = match.teamA?.some(p => getParticipantId(p) === playerId);
+    const inB = match.teamB?.some(p => getParticipantId(p) === playerId);
+    if (!inA && !inB) continue;
+
+    const won = (inA && match.scoreA > match.scoreB) || (inB && match.scoreB > match.scoreA);
+    const lost = (inA && match.scoreA < match.scoreB) || (inB && match.scoreB < match.scoreA);
+
+    if (won) wins++;
+    else if (lost) losses++;
+    else draws++;
+  }
+
+  const total = wins + losses + draws;
+  return {
+    wins,
+    losses,
+    draws,
+    total,
+    winRate: total > 0 ? wins / total : 0,
+    lossRate: total > 0 ? losses / total : 0,
+  };
+}
+
+function calculateTeamRecordBonus(team, allMatches) {
+  if (!team.length || !allMatches.length) return 0;
+
+  const totalBonus = team.reduce((sum, player) => {
+    const record = getPlayerMatchRecord(player.id, allMatches);
+    return sum + ((record.winRate - record.lossRate) * 10);
+  }, 0);
+
+  return totalBonus / team.length;
+}
+
+function getExactCompositionHistory(teamA, teamB, allMatches) {
+  const keyA = normalizeTeamIds(teamA);
+  const keyB = normalizeTeamIds(teamB);
+
+  const matches = allMatches.filter(match => {
+    const matchKeyA = normalizeTeamIds(match.teamA ?? []);
+    const matchKeyB = normalizeTeamIds(match.teamB ?? []);
+    return (matchKeyA === keyA && matchKeyB === keyB) || (matchKeyA === keyB && matchKeyB === keyA);
+  });
+
+  if (!matches.length) {
+    return { played: 0, teamAWins: 0, teamBWins: 0, draws: 0, lastMatch: null, lastWinner: null };
+  }
+
+  let teamAWins = 0;
+  let teamBWins = 0;
+  let draws = 0;
+
+  for (const match of matches) {
+    const sameOrientation = normalizeTeamIds(match.teamA ?? []) === keyA && normalizeTeamIds(match.teamB ?? []) === keyB;
+    const teamAWon = sameOrientation
+      ? match.scoreA > match.scoreB
+      : match.scoreB > match.scoreA;
+    const teamBWon = sameOrientation
+      ? match.scoreB > match.scoreA
+      : match.scoreA > match.scoreB;
+
+    if (teamAWon) teamAWins++;
+    else if (teamBWon) teamBWins++;
+    else draws++;
+  }
+
+  const lastMatch = [...matches].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))[0];
+  const lastSameOrientation = normalizeTeamIds(lastMatch.teamA ?? []) === keyA && normalizeTeamIds(lastMatch.teamB ?? []) === keyB;
+  const lastWinner = lastMatch.scoreA === lastMatch.scoreB
+    ? "draw"
+    : lastSameOrientation
+      ? (lastMatch.scoreA > lastMatch.scoreB ? "teamA" : "teamB")
+      : (lastMatch.scoreA > lastMatch.scoreB ? "teamB" : "teamA");
+
+  return {
+    played: matches.length,
+    teamAWins,
+    teamBWins,
+    draws,
+    lastMatch,
+    lastWinner,
+  };
+}
+
 /**
  * Prédit intelligemment le résultat d'un match entre deux équipes
  * Utilise un algorithme avancé: ELO + facteur d'homogénéité + analyse historique
@@ -147,24 +245,34 @@ export function predictTeamVictory(teamA, teamB, allMatches = []) {
   // Regarder les 5 derniers matchs de chaque joueur
   const formA = calculateTeamFormBonus(teamA, allMatches);
   const formB = calculateTeamFormBonus(teamB, allMatches);
+
+  // ─── PHASE 4: Historique victoires/défaites ───
+  const recordBonusA = calculateTeamRecordBonus(teamA, allMatches);
+  const recordBonusB = calculateTeamRecordBonus(teamB, allMatches);
+
+  // ─── PHASE 5: Historique exact de cette composition ───
+  const exactHistory = getExactCompositionHistory(teamA, teamB, allMatches);
+  const headToHeadBonus = exactHistory.played > 0
+    ? Math.max(-12, Math.min(12, ((exactHistory.teamAWins - exactHistory.teamBWins) / exactHistory.played) * 16))
+    : 0;
   
-  // ─── PHASE 4: Calcul de la probabilité ajustée ───
-  const adjustedEloA = eloA + stabilityBonusA + formA;
-  const adjustedEloB = eloB + stabilityBonusB + formB;
+  // ─── PHASE 6: Calcul de la probabilité ajustée ───
+  const adjustedEloA = eloA + stabilityBonusA + formA + recordBonusA + headToHeadBonus;
+  const adjustedEloB = eloB + stabilityBonusB + formB + recordBonusB - headToHeadBonus;
   
   let probA = expectedScore(adjustedEloA, adjustedEloB);
   let probB = 1 - probA;
   
-  // ─── PHASE 5: Conversion en pourcentages ───
+  // ─── PHASE 7: Conversion en pourcentages ───
   const percentA = Math.round(probA * 10000) / 100;
   const percentB = Math.round(probB * 10000) / 100;
   
-  // ─── PHASE 6: Calcul de la confiance ───
+  // ─── PHASE 8: Calcul de la confiance ───
   // Plus il y a de matchs, plus on est confiant
   const matchCount = allMatches.length;
   const confidence = Math.min(100, 50 + Math.sqrt(matchCount) * 5);
   
-  // ─── PHASE 7: Génération de l'explication ───
+  // ─── PHASE 9: Génération de l'explication ───
   const eloDiff = Math.abs(eloA - eloB);
   let explanation = "";
   
@@ -176,6 +284,10 @@ export function predictTeamVictory(teamA, teamB, allMatches = []) {
     explanation = "Équipes équilibrées avec légère différence";
   } else {
     explanation = "Équipes parfaitement équilibrées";
+  }
+
+  if (recordBonusA !== 0 || recordBonusB !== 0) {
+    explanation += " • Historique victoires/défaites pris en compte";
   }
   
   // Ajouter note sur l'homogénéité
@@ -191,7 +303,8 @@ export function predictTeamVictory(teamA, teamB, allMatches = []) {
     eloA: Math.round(eloA),
     eloB: Math.round(eloB),
     explanation,
-    confidence: Math.round(confidence)
+    confidence: Math.round(confidence),
+    exactHistory,
   };
 }
 
