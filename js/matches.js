@@ -14,6 +14,12 @@ import { Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-f
 let currentMode = "1v1";
 let allSorted = [];
 
+function syncModeLabel(mode) {
+  const label = document.getElementById("currentModeLabel");
+  if (!label) return;
+  label.textContent = mode === "2v2" ? "2 VS 2" : "1 VS 1";
+}
+
 onStateReady(() => {
   const { sorted } = recomputeAllEloFull();
   allSorted = sorted;
@@ -29,6 +35,7 @@ document.querySelectorAll(".toggle-btn[data-mode]").forEach(btn => {
     btn.classList.add("active");
     currentMode = btn.dataset.mode;
     set2v2Visibility(currentMode === "2v2");
+    syncModeLabel(currentMode);
     populatePlayerSelects();
   });
 });
@@ -80,6 +87,7 @@ function openModal(matchData = null) {
   currentMode = "1v1";
   document.querySelectorAll(".toggle-btn[data-mode]").forEach(b => b.classList.toggle("active", b.dataset.mode === "1v1"));
   set2v2Visibility(false);
+  syncModeLabel(currentMode);
   ["teamA1", "teamA2", "teamB1", "teamB2"].forEach(id => { const s = document.getElementById(id); if (s) s.value = ""; });
 
   if (matchData) {
@@ -88,6 +96,7 @@ function openModal(matchData = null) {
     currentMode = matchData.mode;
     document.querySelectorAll(".toggle-btn[data-mode]").forEach(b => b.classList.toggle("active", b.dataset.mode === matchData.mode));
     set2v2Visibility(matchData.mode === "2v2");
+    syncModeLabel(currentMode);
     document.getElementById("scoreA").value = matchData.scoreA;
     document.getElementById("scoreB").value = matchData.scoreB;
     document.getElementById("matchComment").value = matchData.comment ?? "";
@@ -153,9 +162,10 @@ document.getElementById("saveMatch")?.addEventListener("click", async () => {
     showToast("Veuillez sélectionner tous les joueurs", "error"); return;
   }
 
-  // Check duplicate players
-  const allIds = [...teamA, ...teamB].map(p => p.playerId);
-  if (new Set(allIds).size !== allIds.length) {
+  // Un joueur peut apparaître deux fois dans une même équipe, mais pas dans les deux camps
+  const idsA = teamA.map(p => p.playerId);
+  const idsB = teamB.map(p => p.playerId);
+  if (idsA.some(id => idsB.includes(id))) {
     showToast("Un joueur ne peut pas jouer dans les deux équipes", "error"); return;
   }
 

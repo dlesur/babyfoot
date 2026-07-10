@@ -56,7 +56,11 @@
 
           <!-- MODE -->
           <div class="form-group">
-            <label class="form-label">Mode de jeu</label>
+            <label class="form-label" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+              <span>Mode de jeu</span>
+              <span class="mode-pill" id="currentModeLabel">1 VS 1</span>
+            </label>
+            <div class="form-hint">Choisis le mode avant de sélectionner les joueurs.</div>
             <div class="toggle-group">
               <button class="toggle-btn active" data-mode="1v1">1 VS 1</button>
               <button class="toggle-btn" data-mode="2v2">2 VS 2</button>

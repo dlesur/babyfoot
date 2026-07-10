@@ -10,6 +10,7 @@ const STORAGE_KEY = "babyfoot_player_weights";
 const ROLE_STORAGE_KEY = "babyfoot_role_weights";
 const TEAMS_COUNT = 2;
 const PLAYERS_PER_TEAM = 2;
+const MIN_SELECTED_PLAYERS = 3;
 
 let selectedPlayers = [];
 let playerWeights = {};
@@ -235,12 +236,22 @@ function clearSelection() {
   selectedPlayers = [];
 }
 
+function getTeamSizes(totalPlayers) {
+  if (totalPlayers === 3) {
+    return Math.random() < 0.5 ? [1, 2] : [2, 1];
+  }
+
+  return [2, 2];
+}
+
 // ─── Génération des équipes ────────────────────────────────
 function generateTeams() {
-  if (selectedPlayers.length < TEAMS_COUNT * PLAYERS_PER_TEAM) {
-    showToast(`Besoin d'au moins ${TEAMS_COUNT * PLAYERS_PER_TEAM} joueurs!`, "error");
+  if (selectedPlayers.length < MIN_SELECTED_PLAYERS) {
+    showToast(`Besoin d'au moins ${MIN_SELECTED_PLAYERS} joueurs!`, "error");
     return;
   }
+
+  const teamSizes = getTeamSizes(selectedPlayers.length);
 
   // Copy selected players and shuffle with weights
   const candidates = [...selectedPlayers];
@@ -250,7 +261,7 @@ function generateTeams() {
   // Generate each team
   for (let t = 0; t < TEAMS_COUNT; t++) {
     const team = [];
-    for (let p = 0; p < PLAYERS_PER_TEAM; p++) {
+    for (let p = 0; p < teamSizes[t]; p++) {
       // Weighted random selection
       const player = weightedRandomPick(
         candidates.filter(c => !selectedInTeams.has(c.id)),
@@ -299,6 +310,13 @@ function weightedRandomPick(candidates, weights, currentTeam = []) {
 }
 
 function assignTeamRoles(team) {
+  if (team.length === 1) {
+    return team.map(player => ({
+      ...player,
+      role: "seul"
+    }));
+  }
+
   if (team.length !== PLAYERS_PER_TEAM) return team;
 
   const attackChanceA = getAttackChance(team[0].id);
@@ -329,6 +347,8 @@ const POSITIONS = [
   { name: "Attaque", emoji: "⚔️" },
   { name: "Défense", emoji: "🛡️" }
 ];
+
+const SOLO_POSITION = { name: "Seul", emoji: "👤" };
 
 function renderGeneratedTeams(teams) {
   const container = document.getElementById("teamsContainer");
@@ -393,7 +413,11 @@ function renderGeneratedTeams(teams) {
             </div>
             <div class="team-players">
               ${team.map((player, playerIdx) => {
-                const position = player.role === "attaque" ? POSITIONS[0] : POSITIONS[1];
+                const position = player.role === "attaque"
+                  ? POSITIONS[0]
+                  : player.role === "defense"
+                    ? POSITIONS[1]
+                    : SOLO_POSITION;
                 return `
                   <div class="team-player">
                     <div class="player-position">
