@@ -102,26 +102,9 @@ export function computeEloChanges(match, players) {
       [pB.playerId]: { before: eloB, after: result.newEloB, delta: result.deltaB },
     };
   } else {
-    const countA = countParticipants(match.teamA);
-    const countB = countParticipants(match.teamB);
     const tA = match.teamA.map(p => ({ id: p.playerId, elo: players[p.playerId]?.elo ?? BASE_ELO }));
     const tB = match.teamB.map(p => ({ id: p.playerId, elo: players[p.playerId]?.elo ?? BASE_ELO }));
-    const changes = calculate2v2(tA, tB, match.scoreA, match.scoreB);
-
-    for (const [playerId, change] of Object.entries(changes)) {
-      const participantCount = countA.get(playerId) ?? countB.get(playerId) ?? 1;
-      if (participantCount > 1) {
-        const before = change.before;
-        const after = Math.round(before + (change.delta / participantCount));
-        changes[playerId] = {
-          before,
-          after,
-          delta: after - before,
-        };
-      }
-    }
-
-    return changes;
+    return calculate2v2(tA, tB, match.scoreA, match.scoreB);
   }
 }
 
@@ -139,16 +122,6 @@ function calculateStdDev(values, mean) {
 
 function getParticipantId(player) {
   return player?.playerId ?? player?.id ?? null;
-}
-
-function countParticipants(team) {
-  const counts = new Map();
-  for (const player of team ?? []) {
-    const participantId = getParticipantId(player);
-    if (!participantId) continue;
-    counts.set(participantId, (counts.get(participantId) ?? 0) + 1);
-  }
-  return counts;
 }
 
 function normalizeTeamIds(team) {
