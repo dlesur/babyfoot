@@ -91,6 +91,8 @@ export function calculate2v2(teamA, teamB, scoreA, scoreB) {
  * @returns {{ [playerId]: { before, after, delta } }}
  */
 export function computeEloChanges(match, players) {
+  const gainMultiplier = match.gainMultiplier ?? 1;
+
   if (match.mode === "1v1") {
     const pA = match.teamA[0];
     const pB = match.teamB[0];
@@ -98,13 +100,30 @@ export function computeEloChanges(match, players) {
     const eloB = players[pB.playerId]?.elo ?? BASE_ELO;
     const result = calculate1v1(eloA, eloB, match.scoreA, match.scoreB);
     return {
-      [pA.playerId]: { before: eloA, after: result.newEloA, delta: result.deltaA },
-      [pB.playerId]: { before: eloB, after: result.newEloB, delta: result.deltaB },
+      [pA.playerId]: {
+        before: eloA,
+        after: Math.round(eloA + result.deltaA * gainMultiplier),
+        delta: Math.round(result.deltaA * gainMultiplier),
+      },
+      [pB.playerId]: {
+        before: eloB,
+        after: Math.round(eloB + result.deltaB * gainMultiplier),
+        delta: Math.round(result.deltaB * gainMultiplier),
+      },
     };
   } else {
     const tA = match.teamA.map(p => ({ id: p.playerId, elo: players[p.playerId]?.elo ?? BASE_ELO }));
     const tB = match.teamB.map(p => ({ id: p.playerId, elo: players[p.playerId]?.elo ?? BASE_ELO }));
-    return calculate2v2(tA, tB, match.scoreA, match.scoreB);
+    const changes = calculate2v2(tA, tB, match.scoreA, match.scoreB);
+    for (const [playerId, change] of Object.entries(changes)) {
+      const delta = Math.round(change.delta * gainMultiplier);
+      changes[playerId] = {
+        before: change.before,
+        after: Math.round(change.before + delta),
+        delta,
+      };
+    }
+    return changes;
   }
 }
 

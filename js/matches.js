@@ -80,6 +80,7 @@ function openModal(matchData = null) {
   document.getElementById("editMatchId").value = "";
   document.getElementById("scoreA").value = 0;
   document.getElementById("scoreB").value = 0;
+  document.getElementById("matchGain").value = "1";
   document.getElementById("matchComment").value = "";
   document.getElementById("matchDate").value = toDatetimeLocal(new Date());
 
@@ -99,6 +100,7 @@ function openModal(matchData = null) {
     syncModeLabel(currentMode);
     document.getElementById("scoreA").value = matchData.scoreA;
     document.getElementById("scoreB").value = matchData.scoreB;
+    document.getElementById("matchGain").value = String(matchData.gainMultiplier ?? 1);
     document.getElementById("matchComment").value = matchData.comment ?? "";
 
     const date = matchData.date?.toDate ? matchData.date.toDate() : new Date(matchData.date);
@@ -138,6 +140,7 @@ document.getElementById("saveMatch")?.addEventListener("click", async () => {
   const mode = currentMode;
   const scoreA = parseInt(document.getElementById("scoreA").value) || 0;
   const scoreB = parseInt(document.getElementById("scoreB").value) || 0;
+  const gainMultiplier = parseFloat(document.getElementById("matchGain").value) || 1;
   const comment = document.getElementById("matchComment").value.trim();
   const dateVal = document.getElementById("matchDate").value;
   const editId = document.getElementById("editMatchId").value;
@@ -170,7 +173,7 @@ document.getElementById("saveMatch")?.addEventListener("click", async () => {
   }
 
   const date = dateVal ? Timestamp.fromDate(new Date(dateVal)) : Timestamp.now();
-  const matchData = { mode, teamA: teamA.filter(Boolean), teamB: teamB.filter(Boolean), scoreA, scoreB, comment, date };
+  const matchData = { mode, teamA: teamA.filter(Boolean), teamB: teamB.filter(Boolean), scoreA, scoreB, gainMultiplier, comment, date };
 
   try {
     if (editId) {
@@ -253,6 +256,7 @@ function matchCardHTML(m) {
   return `
     <div class="match-card">
       <span class="match-mode-badge">${m.mode.toUpperCase()}</span>
+      ${m.gainMultiplier && m.gainMultiplier !== 1 ? `<span class="match-mode-badge">ELO x${m.gainMultiplier}</span>` : ""}
       <div class="match-teams">
         ${teamHTML(m.teamA, m.scoreA, winA)}
         <div class="match-score">${m.scoreA} <span class="score-sep">—</span> ${m.scoreB}</div>
