@@ -163,10 +163,10 @@ function pairPenalty(candidate, currentTeam) {
 
   for (const player of relatedPlayers) {
     for (const fragment of _B1) {
-      if (matchesLabel(player.id, fragment)) multiplier *= 1.4;
+      if (matchesLabel(player.id, fragment)) multiplier *= 1.25;
     }
     for (const fragment of _B2) {
-      if (matchesLabel(player.id, fragment)) multiplier *= 0.6;
+      if (matchesLabel(player.id, fragment)) multiplier *= 0.75;
     }
   }
 

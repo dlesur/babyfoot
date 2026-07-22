@@ -258,8 +258,8 @@ function updateEloChart() {
   const selectedIds = Array.from(document.querySelectorAll(".chart-player-filter:checked")).map(cb => cb.value);
   const displayedPlayers = allPlayers.filter(p => selectedIds.includes(p.id));
 
-  // Build X axis: index = match number (global)
-  const labels = ["Début", ...sortedMatches.map((_, i) => `M${i + 1}`)];
+  // Build X axis from real dates instead of match numbers
+  const labels = ["Début", ...sortedMatches.map(m => formatDateShort(m.date))];
 
   // Per player: track ELO evolution
   const datasets = displayedPlayers.map(p => {

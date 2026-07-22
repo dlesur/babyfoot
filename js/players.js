@@ -12,7 +12,11 @@ import {
 
 const COLOR_PRESETS = [
   "#00e87a","#00b8ff","#ff4757","#ffa502","#a55eea",
-  "#ff6b81","#eccc68","#1e90ff","#ff6348","#2ed573"
+  "#ff6b81","#eccc68","#1e90ff","#ff6348","#2ed573",
+  "#22a6b3","#f368e0","#54a0ff","#ff9f43","#10ac84",
+  "#ee5253","#5f27cd","#c8d6e5","#8395a7","#48dbfb",
+  "#1dd1a1","#feca57","#576574","#54e346","#ff9ff3",
+  "#0abde3","#ff9f1a","#7bed9f","#70a1ff","#ff7f50"
 ];
 
 let detailChart = null;
@@ -23,6 +27,7 @@ onStateReady(() => {
   allSorted = sorted;
   renderPlayersGrid();
   renderColorPresets();
+  void ensureUniquePlayerColors();
 });
 
 // ─── Color Presets ────────────────────────────────────────────
@@ -39,6 +44,84 @@ function renderColorPresets() {
       el.classList.add("selected");
     });
   });
+}
+
+function normalizeColor(color) {
+  return (color ?? "").trim().toLowerCase();
+}
+
+function getUsedColors(excludePlayerId = null) {
+  const usedColors = new Set();
+  for (const player of Object.values(state.players)) {
+    if (excludePlayerId && player.id === excludePlayerId) continue;
+    if (player.color) usedColors.add(normalizeColor(player.color));
+  }
+  return usedColors;
+}
+
+function buildFallbackColor(index) {
+  const hue = (index * 47) % 360;
+  return `hsl(${hue} 88% 58%)`;
+}
+
+function pickUniqueColor(preferredColor = null, excludePlayerId = null) {
+  const usedColors = getUsedColors(excludePlayerId);
+  const preferred = normalizeColor(preferredColor);
+
+  if (preferred && !usedColors.has(preferred)) {
+    return preferredColor;
+  }
+
+  for (const preset of COLOR_PRESETS) {
+    if (!usedColors.has(normalizeColor(preset))) {
+      return preset;
+    }
+  }
+
+  let index = 0;
+  while (index < 360) {
+    const fallback = buildFallbackColor(index);
+    if (!usedColors.has(normalizeColor(fallback))) {
+      return fallback;
+    }
+    index += 1;
+  }
+
+  return preferredColor || COLOR_PRESETS[0];
+}
+
+async function ensureUniquePlayerColors() {
+  const players = Object.values(state.players).sort((a, b) => {
+    const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt ?? 0);
+    const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt ?? 0);
+    return dateA - dateB;
+  });
+
+  const seenColors = new Set();
+  let changed = false;
+
+  for (const player of players) {
+    const currentColor = normalizeColor(player.color);
+    if (!currentColor) continue;
+
+    if (seenColors.has(currentColor)) {
+      const uniqueColor = pickUniqueColor(player.color, player.id);
+      if (normalizeColor(uniqueColor) !== currentColor) {
+        await editPlayer(player.id, { color: uniqueColor });
+        changed = true;
+      }
+      seenColors.add(normalizeColor(uniqueColor));
+    } else {
+      seenColors.add(currentColor);
+    }
+  }
+
+  if (changed) {
+    const { sorted } = recomputeAllEloFull();
+    allSorted = sorted;
+    renderPlayersGrid();
+    renderColorPresets();
+  }
 }
 
 // ─── Players Grid ─────────────────────────────────────────────
@@ -135,7 +218,7 @@ function formatMatchTeam(team) {
 function openAddModal() {
   document.getElementById("playerModalTitle").textContent = "Nouveau joueur";
   document.getElementById("playerName").value = "";
-  document.getElementById("playerColor").value = COLOR_PRESETS[Math.floor(Math.random() * COLOR_PRESETS.length)];
+  document.getElementById("playerColor").value = pickUniqueColor(COLOR_PRESETS[Math.floor(Math.random() * COLOR_PRESETS.length)]);
   document.getElementById("editPlayerId").value = "";
   document.getElementById("playerModal").classList.add("open");
 }
@@ -163,12 +246,14 @@ document.getElementById("savePlayer")?.addEventListener("click", async () => {
   const editId = document.getElementById("editPlayerId").value;
   if (!name) { showToast("Veuillez entrer un pseudo", "error"); return; }
 
+  const finalColor = pickUniqueColor(color, editId || null);
+
   try {
     if (editId) {
-      await editPlayer(editId, { name, color });
+      await editPlayer(editId, { name, color: finalColor });
       showToast("Joueur modifié");
     } else {
-      await addPlayer(name, color);
+      await addPlayer(name, finalColor);
       showToast(`${name} ajouté !`);
     }
     closePlayerModal();
@@ -259,7 +344,10 @@ function openPlayerDetail(playerId) {
 
   // ELO History for chart
   const eloData = stats.eloHistory.map(h => h.elo);
-  const eloLabels = stats.eloHistory.map((h, i) => i === 0 ? "Début" : `M${i}`);
+  const eloLabels = stats.eloHistory.map((h, i) => {
+    if (i === 0) return "Début";
+    return h.date ? formatDateShort(h.date) : `M${i}`;
+  });
 
   // Rivals
   const rivals = stats.oppList.slice(0, 10);
